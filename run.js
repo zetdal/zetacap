@@ -250,12 +250,23 @@
     if (parts.length <= 1) return;
 
     const names = [...new Set([...CONFIG.namesToMask.filter(Boolean), ...detectedNames])];
+    const parentEl = textNode.parentNode;
+    let computedWeight = null;
+    let computedColor = null;
+    if (parentEl && parentEl.nodeType === 1 && window.getComputedStyle) {
+      const cs = window.getComputedStyle(parentEl);
+      computedWeight = cs.fontWeight;
+      computedColor = cs.color;
+    }
+
     const frag = document.createDocumentFragment();
     parts.forEach((part) => {
       if (names.includes(part)) {
         const span = document.createElement('span');
         span.className = 'zeta-inline-name-mask';
         span.dataset.zetaOriginal = part;
+        if (computedWeight) span.style.setProperty('font-weight', computedWeight, 'important');
+        if (computedColor) span.style.setProperty('color', computedColor, 'important');
         setSpanMaskedState(span);
         frag.appendChild(span);
       } else if (part) {
