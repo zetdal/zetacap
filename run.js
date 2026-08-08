@@ -78,6 +78,7 @@
       /* 이름/닉네임: 텍스트만 투명화 (검은 박스 없이 사라지는 스타일) */
       ${nameSel} {
         color: transparent !important;
+        -webkit-text-fill-color: transparent !important;
       }
 
       /* 플로팅 토글 버튼 */
@@ -253,10 +254,12 @@
     const parentEl = textNode.parentNode;
     let computedWeight = null;
     let computedColor = null;
+    let computedFill = null;
     if (parentEl && parentEl.nodeType === 1 && window.getComputedStyle) {
       const cs = window.getComputedStyle(parentEl);
       computedWeight = cs.fontWeight;
       computedColor = cs.color;
+      computedFill = cs.webkitTextFillColor || computedColor;
     }
 
     const frag = document.createDocumentFragment();
@@ -267,6 +270,7 @@
         span.dataset.zetaOriginal = part;
         if (computedWeight) span.style.setProperty('font-weight', computedWeight, 'important');
         if (computedColor) span.style.setProperty('color', computedColor, 'important');
+        if (computedFill) span.style.setProperty('-webkit-text-fill-color', computedFill, 'important');
         setSpanMaskedState(span);
         frag.appendChild(span);
       } else if (part) {
