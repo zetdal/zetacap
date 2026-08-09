@@ -3,7 +3,7 @@
 // @namespace    https://github.com/leemango/zeta-userscripts
 // @version      1.0
 // @description  캡처 시 {{char}}/{{user}} 이름, 프로필 사진을 검은 박스로 덮어서 가림 (프로필/말풍선/나레이터 전부)
-// @author       이망고
+// @author       이젯시
 // @match        https://zeta-ai.io/*
 // @match        https://*.zeta-ai.io/*
 // @run-at       document-idle
@@ -42,7 +42,7 @@
       '[class*="profile-header" i]',
     ],
     // 말풍선 지문/대사 텍스트 안에 이름이 그냥 섞여 있는 경우 자동 투명화.
-    // 이름은 프사 alt(예: "차강혁 프로필 이미지")와 이름표(caption1) 텍스트에서 자동으로 수집됨.
+    // 이름은 프사 alt(예: "김젯시 프로필 이미지")와 이름표(caption1) 텍스트에서 자동으로 수집됨.
     // 나레이션에만 나오고 프사/이름표엔 안 나오는 별명 등을 추가로 가리고 싶으면 여기 수동 추가.
     namesToMask: [
     ],
@@ -181,7 +181,7 @@
       const name = raw && raw.trim();
       if (!name || name.length > MAX_NAME_LEN) return;
       detectedNames.add(name);
-      // 성 한 글자를 뗀 축약형도 함께 등록 (예: "차강혁" → "강혁"). 2글자 이하 이름엔 적용 안 함.
+      // 성 한 글자를 뗀 축약형도 함께 등록 (예: "김젯시" → "젯시"). 2글자 이하 이름엔 적용 안 함.
       if (name.length >= 3) {
         detectedNames.add(name.slice(1));
       }
