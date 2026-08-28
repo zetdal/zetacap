@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Zeta Capture Mask (이름/프사 가리기)
 // @namespace    https://github.com/leemango/zeta-userscripts
-// @version      1.0
+// @version      1.1
 // @description  캡처 시 {{char}}/{{user}} 이름, 프로필 사진을 검은 박스로 덮어서 가림 (프로필/말풍선/나레이터 전부)
 // @author       이젯시
 // @match        https://zeta-ai.io/*
@@ -20,9 +20,9 @@
    * 안 먹히는 selector는 지워도 되고, 새로 찾은 selector는 배열에 추가.
    * ============================================================ */
   const CONFIG = {
-    // 프사/아바타 이미지 — {{char}}/{{user}} 모두 alt="OO 프로필 이미지" 패턴 (실제 확인됨)
+    // 프사/아바타 이미지 — alt가 이름 자체 (예: alt="박두철"). 클래스 기반으로 매칭 (2026-08 확인됨)
     avatarSelectors: [
-      'img[alt$="프로필 이미지"]',
+      'img.rounded-full.object-cover.aspect-square',
     ],
     // 말풍선 발화자 이름 — caption1 + 색상클래스 조합으로만 매칭 (나레이션/날짜 텍스트는 caption1이 없어서 자동 제외됨, 실제 확인됨)
     nameSelectors: [
@@ -42,7 +42,7 @@
       '[class*="profile-header" i]',
     ],
     // 말풍선 지문/대사 텍스트 안에 이름이 그냥 섞여 있는 경우 자동 투명화.
-    // 이름은 프사 alt(예: "김젯시 프로필 이미지")와 이름표(caption1) 텍스트에서 자동으로 수집됨.
+    // 이름은 프사 alt(예: "김젯시")와 이름표(caption1) 텍스트에서 자동으로 수집됨.
     // 나레이션에만 나오고 프사/이름표엔 안 나오는 별명 등을 추가로 가리고 싶으면 여기 수동 추가.
     namesToMask: [
     ],
@@ -173,7 +173,6 @@
   }
 
   const detectedNames = new Set();
-  const AVATAR_ALT_SUFFIX = /\s*프로필\s*이미지$/;
   const MAX_NAME_LEN = 12;
 
   function harvestNames() {
@@ -187,13 +186,14 @@
       }
     };
 
+    // 프사 alt는 이제 이름 자체이므로 접미사 처리 없이 바로 사용 (2026-08 UI 변경 반영)
     buildSelectorList(['avatarSelectors']).forEach((sel) => {
       let els;
       try { els = document.querySelectorAll(sel); } catch (e) { return; }
       els.forEach((img) => {
         const alt = img.getAttribute && img.getAttribute('alt');
-        if (!alt || !AVATAR_ALT_SUFFIX.test(alt)) return;
-        add(alt.replace(AVATAR_ALT_SUFFIX, ''));
+        if (!alt) return;
+        add(alt);
       });
     });
 
