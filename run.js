@@ -109,11 +109,6 @@
       #zetaCaptureMaskBtn:active {
         cursor: grabbing;
       }
-      /* 롱프레스로 들어간 "삭제 확인" 상태 */
-      #zetaCaptureMaskBtn.confirm-remove {
-        background: #b30000;
-        border-color: #ff4d4d;
-      }
     `;
     document.head.appendChild(style);
   }
@@ -322,40 +317,12 @@
     } catch (e) {}
   }
 
-  // ---------- 롱프레스로 버튼 완전 삭제 ----------
+  // ---------- 롱프레스로 버튼 즉시 삭제 ----------
   let btnRemoved = false;
-  let confirmRemoveTimeout = null;
-  const LONG_PRESS_MS = 550;
-  const CONFIRM_REMOVE_MS = 3000;
-
-  function onOutsidePointerDown(e) {
-    const btn = document.getElementById('zetaCaptureMaskBtn');
-    if (!btn) return;
-    if (e.target === btn) return; // 버튼 자체를 누른 경우는 pointerdown 핸들러에서 따로 처리
-    exitConfirmRemove(btn);
-  }
-
-  function exitConfirmRemove(btn) {
-    if (confirmRemoveTimeout) { clearTimeout(confirmRemoveTimeout); confirmRemoveTimeout = null; }
-    btn.classList.remove('confirm-remove');
-    const on = document.body.classList.contains(BODY_CLASS);
-    btn.textContent = on ? '🙈' : '🐵';
-    btn.title = '클릭: 가리기 켜기/끄기 (드래그: 위치 이동, 길게 누르면 버튼 삭제)';
-    document.removeEventListener('pointerdown', onOutsidePointerDown, true);
-  }
-
-  function enterConfirmRemove(btn) {
-    btn.classList.add('confirm-remove');
-    btn.textContent = '✕';
-    btn.title = '한 번 더 누르면 버튼이 완전히 사라져요 (다른 곳 누르면 취소)';
-    confirmRemoveTimeout = setTimeout(() => exitConfirmRemove(btn), CONFIRM_REMOVE_MS);
-    document.addEventListener('pointerdown', onOutsidePointerDown, true);
-  }
+  const LONG_PRESS_MS = 1000;
 
   function removeButtonPermanently(btn) {
     btnRemoved = true;
-    if (confirmRemoveTimeout) { clearTimeout(confirmRemoveTimeout); confirmRemoveTimeout = null; }
-    document.removeEventListener('pointerdown', onOutsidePointerDown, true);
     if (rescanInterval) { clearInterval(rescanInterval); rescanInterval = null; }
     try { observer.disconnect(); } catch (e) {}
     btn.remove();
@@ -386,13 +353,6 @@
     let longPressFired = false;
 
     btn.addEventListener('pointerdown', (e) => {
-      // 이미 "삭제 확인" 상태에서 버튼을 다시 누르면 → 완전 삭제
-      if (btn.classList.contains('confirm-remove')) {
-        e.stopPropagation();
-        removeButtonPermanently(btn);
-        return;
-      }
-
       dragging = true;
       moved = false;
       longPressFired = false;
@@ -403,7 +363,7 @@
       longPressTimer = setTimeout(() => {
         if (!moved) {
           longPressFired = true;
-          enterConfirmRemove(btn);
+          removeButtonPermanently(btn);
         }
       }, LONG_PRESS_MS);
     });
@@ -439,8 +399,7 @@
       if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
 
       if (longPressFired) {
-        // 롱프레스로 "삭제 확인" 상태에 막 들어간 직후의 pointerup → 토글하지 않고 그냥 무시
-        btn.releasePointerCapture(e.pointerId);
+        // 롱프레스로 이미 버튼이 삭제된 뒤의 pointerup → 아무것도 안 함
         return;
       }
 
