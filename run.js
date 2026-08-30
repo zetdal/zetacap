@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Zeta Capture Mask (이름/프사 가리기)
 // @namespace    https://github.com/leemango/zeta-userscripts
-// @version      1.1
+// @version      1.2
 // @description  캡처 시 {{char}}/{{user}} 이름, 프로필 사진을 검은 박스로 덮어서 가림 (프로필/말풍선/나레이터 전부)
 // @author       이젯시
 // @match        https://zeta-ai.io/*
@@ -97,6 +97,8 @@
         cursor: grab;
         z-index: 2147483647;
         user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none; /* iOS 사파리 롱프레스 시 복사/이모지 메뉴 뜨는 것 방지 */
         box-shadow: 0 2px 8px rgba(0,0,0,0.4);
         transition: background 0.15s, border-color 0.15s;
       }
@@ -106,6 +108,11 @@
       }
       #zetaCaptureMaskBtn:active {
         cursor: grabbing;
+      }
+      /* 롱프레스로 들어간 "삭제 확인" 상태 */
+      #zetaCaptureMaskBtn.confirm-remove {
+        background: #b30000;
+        border-color: #ff4d4d;
       }
     `;
     document.head.appendChild(style);
@@ -151,7 +158,7 @@
     const on = document.body.classList.toggle(BODY_CLASS);
     btn.classList.toggle('active', on);
     btn.textContent = on ? '🙈' : '🐵';
-    btn.title = on ? '가리기 켜짐 (클릭하면 해제)' : '가리기 꺼짐 (클릭하면 가림)';
+    btn.title = on ? '가리기 켜짐 (클릭하면 해제, 길게 누르면 버튼 삭제)' : '가리기 꺼짐 (클릭하면 가림, 길게 누르면 버튼 삭제)';
 
     document.querySelectorAll('.zeta-inline-name-mask').forEach(setSpanMaskedState);
 
@@ -315,13 +322,53 @@
     } catch (e) {}
   }
 
+  // ---------- 롱프레스로 버튼 완전 삭제 ----------
+  let btnRemoved = false;
+  let confirmRemoveTimeout = null;
+  const LONG_PRESS_MS = 550;
+  const CONFIRM_REMOVE_MS = 3000;
+
+  function onOutsidePointerDown(e) {
+    const btn = document.getElementById('zetaCaptureMaskBtn');
+    if (!btn) return;
+    if (e.target === btn) return; // 버튼 자체를 누른 경우는 pointerdown 핸들러에서 따로 처리
+    exitConfirmRemove(btn);
+  }
+
+  function exitConfirmRemove(btn) {
+    if (confirmRemoveTimeout) { clearTimeout(confirmRemoveTimeout); confirmRemoveTimeout = null; }
+    btn.classList.remove('confirm-remove');
+    const on = document.body.classList.contains(BODY_CLASS);
+    btn.textContent = on ? '🙈' : '🐵';
+    btn.title = '클릭: 가리기 켜기/끄기 (드래그: 위치 이동, 길게 누르면 버튼 삭제)';
+    document.removeEventListener('pointerdown', onOutsidePointerDown, true);
+  }
+
+  function enterConfirmRemove(btn) {
+    btn.classList.add('confirm-remove');
+    btn.textContent = '✕';
+    btn.title = '한 번 더 누르면 버튼이 완전히 사라져요 (다른 곳 누르면 취소)';
+    confirmRemoveTimeout = setTimeout(() => exitConfirmRemove(btn), CONFIRM_REMOVE_MS);
+    document.addEventListener('pointerdown', onOutsidePointerDown, true);
+  }
+
+  function removeButtonPermanently(btn) {
+    btnRemoved = true;
+    if (confirmRemoveTimeout) { clearTimeout(confirmRemoveTimeout); confirmRemoveTimeout = null; }
+    document.removeEventListener('pointerdown', onOutsidePointerDown, true);
+    if (rescanInterval) { clearInterval(rescanInterval); rescanInterval = null; }
+    try { observer.disconnect(); } catch (e) {}
+    btn.remove();
+    showToast('가리기 버튼 삭제됨\n(다시 쓰려면 새로고침하거나 북마클릿을 다시 눌러주세요)');
+  }
+
   function createButton() {
     if (document.getElementById('zetaCaptureMaskBtn')) return;
 
     const btn = document.createElement('div');
     btn.id = 'zetaCaptureMaskBtn';
     btn.textContent = '🐵';
-    btn.title = '클릭: 가리기 켜기/끄기 (드래그: 위치 이동)';
+    btn.title = '클릭: 가리기 켜기/끄기 (드래그: 위치 이동, 길게 누르면 버튼 삭제)';
 
     const pos = loadBtnPos();
     if (pos.left != null) btn.style.left = pos.left + 'px';
@@ -331,24 +378,44 @@
 
     document.body.appendChild(btn);
 
-    // 드래그 + 클릭 구분
+    // 드래그 + 클릭 + 롱프레스(삭제) 구분
     let dragging = false;
     let moved = false;
     let startX, startY;
+    let longPressTimer = null;
+    let longPressFired = false;
 
     btn.addEventListener('pointerdown', (e) => {
+      // 이미 "삭제 확인" 상태에서 버튼을 다시 누르면 → 완전 삭제
+      if (btn.classList.contains('confirm-remove')) {
+        e.stopPropagation();
+        removeButtonPermanently(btn);
+        return;
+      }
+
       dragging = true;
       moved = false;
+      longPressFired = false;
       startX = e.clientX;
       startY = e.clientY;
       btn.setPointerCapture(e.pointerId);
+
+      longPressTimer = setTimeout(() => {
+        if (!moved) {
+          longPressFired = true;
+          enterConfirmRemove(btn);
+        }
+      }, LONG_PRESS_MS);
     });
 
     btn.addEventListener('pointermove', (e) => {
       if (!dragging) return;
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
-      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+        moved = true;
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      }
       if (!moved) return;
 
       const rect = btn.getBoundingClientRect();
@@ -369,6 +436,14 @@
 
     btn.addEventListener('pointerup', (e) => {
       dragging = false;
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+
+      if (longPressFired) {
+        // 롱프레스로 "삭제 확인" 상태에 막 들어간 직후의 pointerup → 토글하지 않고 그냥 무시
+        btn.releasePointerCapture(e.pointerId);
+        return;
+      }
+
       if (!moved) {
         toggleMask(btn);
       } else {
@@ -390,7 +465,7 @@
 
   // SPA 라우팅/새 메시지 추가/스트리밍 텍스트 변경 감지
   const observer = new MutationObserver((mutations) => {
-    if (!document.getElementById('zetaCaptureMaskBtn')) {
+    if (!btnRemoved && !document.getElementById('zetaCaptureMaskBtn')) {
       createButton();
     }
     if (!document.getElementById(STYLE_ID)) {
