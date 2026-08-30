@@ -326,7 +326,6 @@
     if (rescanInterval) { clearInterval(rescanInterval); rescanInterval = null; }
     try { observer.disconnect(); } catch (e) {}
     btn.remove();
-    showToast('가리기 버튼 삭제됨\n(다시 쓰려면 새로고침하거나 북마클릿을 다시 눌러주세요)');
   }
 
   function createButton() {
